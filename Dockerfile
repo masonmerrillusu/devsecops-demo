@@ -1,4 +1,4 @@
-FROM python:3.12-slim
+FROM python:3.14-slim
 
 # Static settings first: these never change, so their layers stay cached
 ENV PORT=8000 \
