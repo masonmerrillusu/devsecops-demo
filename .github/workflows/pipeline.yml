@@ -1,0 +1,79 @@
+name: DevSecOps Pipeline
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  TRIVY_IMAGE: aquasec/trivy:0.74.0@sha256:62b1e65e8869bc4b4c6aa4fa2b21595256c7c2f6018a9d9ad61caf87187c1969
+  IMAGE: devsecops-demo:${{ github.sha }}
+
+jobs:
+  secret-scan:
+    name: 1 Secret scan (Gitleaks)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: gitleaks/gitleaks-action@v3
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  dependency-scan:
+    name: 2 Dependency scan (Trivy)
+    needs: secret-scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Scan requirements.txt for known CVEs
+        run: |
+          docker run --rm -v "$PWD":/work -v trivy-cache:/root/.cache "$TRIVY_IMAGE" \
+            fs --scanners vuln --severity HIGH,CRITICAL --exit-code 1 --skip-dirs .venv /work
+
+  test-and-sast:
+    name: 3-4 Unit tests and static analysis
+    needs: dependency-scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.14"
+      - name: Install dependencies
+        run: pip install -r requirements.txt -r requirements-dev.txt
+      - name: Unit tests (pytest)
+        run: pytest -v
+      - name: Static analysis (Bandit)
+        run: bandit -r app -ll
+
+  image:
+    name: 5-7 Build, image scan, SBOM
+    needs: test-and-sast
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Build image
+        run: |
+          docker build \
+            --build-arg GIT_SHA="$GITHUB_SHA" \
+            --build-arg BUILD_TIME="$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            -t "$IMAGE" .
+          docker save "$IMAGE" -o image.tar
+      - name: Scan image for vulnerabilities
+        run: |
+          docker run --rm -v "$PWD":/work -v trivy-cache:/root/.cache "$TRIVY_IMAGE" \
+            image --input /work/image.tar --severity HIGH,CRITICAL --exit-code 1 --ignore-unfixed
+      - name: Generate SBOM (CycloneDX)
+        run: |
+          docker run --rm -v "$PWD":/work -v trivy-cache:/root/.cache "$TRIVY_IMAGE" \
+            image --input /work/image.tar --format cyclonedx --output /work/sbom.cdx.json
+      - name: Upload SBOM
+        uses: actions/upload-artifact@v7
+        with:
+          name: sbom
+          path: sbom.cdx.json

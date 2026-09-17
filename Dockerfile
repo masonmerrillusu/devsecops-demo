@@ -5,11 +5,18 @@ ENV PORT=8000 \
     PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1
 
+# Apply OS security patches released since the base image was last built
+RUN apt-get update \
+    && apt-get upgrade -y \
+    && rm -rf /var/lib/apt/lists/*
+
 WORKDIR /app
 
-# Dependencies before code: this slow layer is only rebuilt when requirements.txt changes
+# Dependencies before code: this layer is only rebuilt when requirements.txt changes
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+# After installing, remove pip itself
+RUN pip install --no-cache-dir -r requirements.txt \
+    && pip uninstall -y pip
 
 # Only the app itself: no tests, no dev tools, no Git history
 COPY app/ ./app/
@@ -18,7 +25,7 @@ COPY app/ ./app/
 RUN useradd --no-create-home --uid 1000 --shell /usr/sbin/nologin appuser
 USER appuser
 
-# Build metadata last: it changes on every commit, so it must not invalidate the layers above
+# Build metadata last
 ARG GIT_SHA=unknown
 ARG BUILD_TIME=unknown
 ENV GIT_SHA=${GIT_SHA} \
