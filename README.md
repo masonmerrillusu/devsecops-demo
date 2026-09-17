@@ -31,19 +31,8 @@ The Dockerfile sets a safe default, but whoever runs the container can override 
 Every push to `main` runs seven stages in order. If any stage fails, everything after it is skipped.
 
 ```mermaid
-flowchart TD
-    push([git push]) --> s1
-    subgraph source [Checks on the source code]
-        s1[1. Secret scan - Gitleaks] --> s2[2. Dependency scan - Trivy fs]
-        s2 --> s3[3. Unit tests - pytest]
-        s3 --> s4[4. Static analysis - Bandit]
-    end
-    s4 --> s5
-    subgraph artifact [Checks on the built image]
-        s5[5. Docker build] --> s6[6. Image scan - Trivy image]
-        s6 --> s7[7. SBOM - CycloneDX]
-    end
-    s7 --> done([Image is safe to ship])
+flowchart LR
+    A[Secret scan] --> B[Dependency scan] --> C[Tests + SAST] --> D[Docker build] --> E[Image scan + SBOM]
 ```
 
 | # | Stage | Tool | What it catches | Why it runs here |
@@ -112,4 +101,4 @@ docker build \
 docker run --rm -p 8000:8000 devsecops-demo
 ```
 
-Then open http://localhost:8000.
+Then open http://localhost:8000
