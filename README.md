@@ -40,7 +40,7 @@ flowchart LR
 | 1 | Secret scan | Gitleaks | Keys and passwords committed to Git, anywhere in history | Most urgent finding, and the fastest check |
 | 2 | Dependency scan | Trivy (`fs`) | Known CVEs in the libraries listed in `requirements.txt` | Stops before anything vulnerable is even installed |
 | 3 | Unit tests | pytest | Broken behavior, including the security checks' failure cases | No point building code that does not work |
-| 4 | Static analysis | Bandit | Dangerous patterns in the code | Tests prove code works; SAST proves it is not dangerous |
+| 4 | Static analysis | Bandit | Dangerous patterns in the code | Tests prove code works, SAST proves it is not dangerous |
 | 5 | Build | Docker | n/a | Only source that passed stages 1 to 4 gets built |
 | 6 | Image scan | Trivy (`image`) | CVEs in the base OS and in every installed package | Sees what stage 2 cannot: the OS and transitive dependencies |
 | 7 | SBOM | Trivy (CycloneDX) | n/a (inventory, not a check) | A record of exactly what passed, kept as a build artifact |
@@ -84,7 +84,7 @@ Things that came up while learning to build this demo.
 - gunicorn as the server, started with `exec` so it receives stop signals and shuts down cleanly
 - Unused gunicorn control socket disabled
 - Dependencies pinned to exact versions
-- Configuration through environment variables; Git commit and build time stamped into the image
+- Configuration through environment variables, Git commit and build time stamped into the image
 
 ## Run it locally
 
